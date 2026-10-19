@@ -1,0 +1,27 @@
+# 工具自动执行清单全局化 - 任务计划
+
+- [x] Task 1: 扩展全局配置类型（src/shared/config.ts）
+    - 1.1: ToolSettings 新增 autoExecuteTools 可选字段（含注释）
+    - 1.2: sanitizeToolSettings 用 sanitizeStringArray 清洗 autoExecuteTools
+- [x] Task 2: 判定逻辑改读全局清单
+    - 2.1: auto-execute.ts 的 shouldAutoExecute 改为接收 autoExecuteTools: string[]，保留 workflowMeta 与 high 守卫
+    - 2.2: auto-execute.test.ts 按新签名重写用例并保持通过
+    - 2.3: tool-registry.ts 统一 loadConfig 取 toolSettings，autoApproved 改调新 shouldAutoExecute，移除 agentDetailForAutoExecute
+- [x] Task 3: 确认卡「记住」写入全局
+    - 3.1: config-service.ts 新增 appendAutoExecuteTool(toolName)（去重并落盘）
+    - 3.2: tool-registry.ts outcome.autoRun 分支改调 appendAutoExecuteTool，移除 addAutoExecuteTool 调用与请求里的 agentId
+    - 3.3: shared/tools.ts 从 ToolConfirmationRequest 删除 agentId
+    - 3.4: ConfirmationPanel.tsx 文案「当前智能体」改「全局」
+- [x] Task 4: agent 侧彻底移除 autoExecuteTools
+    - 4.1: shared/agent-profile.ts 四处删除字段
+    - 4.2: agent-profiles-service.ts 删 normalizeAutoExecuteTools、addAutoExecuteTool，及 create/update/parseMetadata/getAgentDetail/list 各处字段
+    - 4.3: AgentEditor.tsx 删除 state/toggle/handleSave 字段、availableTools prop 与「允许自动执行的工具」UI 区块
+    - 4.4: AgentsPanel.tsx 删除 availableTools 加载与透传、AgentDraft 类型/默认值/payload 中的字段
+- [x] Task 5: 工具设置 tab 新增工具多选 UI
+    - 5.1: ToolsSettingsPanel.tsx 组件内加载 listSystemToolCatalog，新增「允许自动执行的工具」区块（medium 可勾、low/high 禁用并标注）
+    - 5.2: onChange 更新 formValues.toolSettings.autoExecuteTools
+    - 5.3: config-form.ts、settings-model.ts、use-settings-state.ts(saveConfigWithValues payload) 同步新字段
+- [x] Task 6: 全量验证
+    - 6.1: npm run typecheck 通过
+    - 6.2: npm test 通过（400/400）
+    - 6.3: 手动冒烟留待用户在应用内验证（工具设置勾选→跨 agent 免确认；确认卡「记住（全局）」写入后设置可见；AgentEditor 不再有该区块）

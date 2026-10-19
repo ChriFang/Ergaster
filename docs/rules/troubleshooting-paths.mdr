@@ -1,0 +1,36 @@
+---
+description: 日志与数据目录的固定路径，排查运行问题/查看审计/检查落盘数据时直接使用，无需重新探索
+alwaysApply: true
+---
+
+# 日志与数据目录速查
+
+排查问题前按此表直接定位，不要用全局搜索去探索路径。
+
+## 日志目录（主进程）
+
+`%APPDATA%\Desktop Agent\log\`（本机实例：`C:\Users\fangruibin\AppData\Roaming\Desktop Agent\log`）
+
+- `main.log` — 主进程运行日志：启动扫描、IPC 错误、模型请求失败、后台任务（如标题生成）异常、`[PERF]` 类临时探针输出
+- `audit.log` — Agent 执行审计：每次请求的 status（success/error/cancelled）、summary、工具执行明细（截断存储）
+
+关键坑：**Electron `userData` 用的是 productName `Desktop Agent`（带空格），不是 package.json 的 name `desktop-agent`**。不要去 `AppData\Roaming\desktop-agent` 找。
+
+- 日志由 `src/main/core/audit-log.ts` 统一管理：单文件 5MB 轮转、审计明细截断（summary 300 / detail 2000 字符）
+- renderer 侧问题先看 DevTools Console；renderer 异常会经 `reportRendererError` 上报到主进程日志
+
+## 应用数据根目录
+
+`~/.desktop-agent/`（本机实例：`C:\Users\fangruibin\.desktop-agent`，由 `src/main/core/app-paths.ts` 提供）
+
+| 目录/文件 | 内容 |
+|---|---|
+| `agents/<id>/` | 智能体配置：`agent.json` + `AGENT.md`（系统提示词） |
+| `conversations/<uuid>/` | 会话：`meta.json`（含 agentId scope、标题、token 估算）+ `segments/NNNNNN-<ts>.json`（消息分段，单段上限 1MB） |
+| `skills/` | 用户 Skill（SKILL.md 等） |
+| `workflows/` | 自定义工作流 `workflow.json` |
+| `code-projects/` | Code 模式工程索引 `projects.json`（只存索引不复制工程） |
+| `code-edits/{conversationId}/` | 写文件前的备份 |
+| `mcp.json` | MCP 服务配置 |
+
+排查会话问题的顺序：先看 `conversations/<uuid>/meta.json`（标题/归属 scope/消息数是否正确），再看 `segments/` 内容；会话内存态与磁盘态由 `conversation-service` 维护一致，直接手改磁盘文件不会反映到运行中的应用（需重启或触发 reload）。

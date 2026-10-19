@@ -1,0 +1,2 @@
+## Mac下查看日志
+tail -f ~/Library/Application\ Support/Desktop\ Agent/log/audit.log | jq .

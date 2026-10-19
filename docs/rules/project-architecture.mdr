@@ -1,0 +1,79 @@
+---
+description: Desktop Agent 项目全局架构与模块边界
+alwaysApply: true
+---
+
+# Desktop Agent 全局架构
+
+## 技术与运行时
+
+- 项目是 Electron + React 19 + TypeScript 应用，使用 Vite 构建 renderer，使用 esbuild 分别打包 main 与 preload。
+- Electron `main` 进程负责窗口生命周期、IPC 注册、模型调用、工具执行、工作流编排、文件读写和外部系统集成。
+- `renderer` 进程只负责 React UI 与交互状态，不直接访问 Node.js、文件系统、Electron 主进程 API 或外部模型服务。
+- `preload` 是唯一的 renderer 能力边界：通过 `contextBridge.exposeInMainWorld('desktopApp', api)` 暴露显式、最小化、类型化的 API。保持 `nodeIntegration: false` 与 `contextIsolation: true`。
+
+## 分层与依赖方向
+
+- `src/shared/` 只放跨进程共享的类型、协议和领域模型（如 agent、workflow、conversation、tools、mcp、config）；不得依赖 Electron、Node.js 文件系统或 renderer 组件。
+- `src/main/` 按功能域分目录存放：`core/`（路径、日志、配置、模型列表、token 估算）、`agent/`（Agent 执行与模型客户端）、`conversation/`（会话与附件）、`agent-profiles/`（智能体配置）、`skills/`、`tools/`（工具注册表、系统工具、确认弹窗）、`capabilities/`（内部扩展能力契约与注册表）、`mail/`（邮件扩展能力，首个 CapabilityModule）、`code/`（Code 模式）、`mcp/`、`workflow/`（含 `runners/` 具体工作流 runner）；`index.ts` 为入口。`*-service.ts` 管理领域状态和持久化，`*-handlers.ts` 负责 IPC handler 注册。
+- `src/renderer/` 通过 `window.desktopApp` 调用主进程能力；新增 IPC 能力必须同步更新 `src/shared/contracts.ts`、`src/preload/index.ts`、main handler 和对应 UI 调用。
+- 依赖方向应保持为 `renderer -> preload -> main -> shared`；业务服务通过 shared 类型通信，避免 renderer 反向依赖 main 实现。
+
+## 核心运行链路
+
+- 会话界面有三种模式：`chat`、`workflow`、`code`；模式与选择状态在 renderer 顶层 hooks（`use-workflow-session`、`use-chat-session`）中管理。
+- 普通 Agent 请求由 `agentService` 管理：加载配置与会话、处理附件、请求模型流、循环执行工具调用、持久化消息并记录审计日志。`agentService` 是单例且同一时刻只允许一个 run（`abortController` 占用期拒绝新请求），收尾的收尾工作（如标题生成）禁止阻塞 run() 关键路径。
+- 会话首轮标题由 `agent/title-generator.ts` 后台生成（fire-and-forget），落定后经 `conversation:changed` 推送刷新 renderer 列表；标题仅在该会话 title 仍为占位符时生成一次，用户手动改名后不再覆盖。
+- 侧边栏智能体/Code 工程项可展开会话下拉（SidebarPanel），同 scope 多会话切换/新增/删除/重命名在 `use-chat-session` 中管理；主进程侧变更一律走 `conversationService` 并经 `onConversationChanged` 推送。
+- **渲染层会话状态按 conversationId 分桶**（`renderer/lib/utils/session-store.ts` 纯函数 store）：每个会话独立持有 messages/isRunning/流缓冲/预览/确认等；`use-chat-session` 对外仍从「活动桶」派生 messages/isRunning 等切片，UI 组件消费切片。切换会话命中桶即时展示、无桶才 `loadConversationMessages` 重载；桶有 LRU 上限（`MAX_SESSION_BUCKETS`，运行中会话豁免淘汰）。
+- 流事件（`agent:stream`）在 renderer 按 `event.conversationId` 路由到对应桶：**后台会话（非当前激活）生成中仍持续累积**，切回即见实时进度；流 delta 合并缓冲的 flush timer 也按会话隔离。`agentService` 仍单例、同一时刻只有一个后端 run，故渲染层用 `hasAnyRunning` 拦截跨会话并发发送，并禁止删除运行中的会话（后端并发属未落地的 Scope 2）。
+- 会话输入体验（纯渲染层、按 conversationId 隔离）：↑/↓ 调起该会话「输入记录」（`input-history.ts`，localStorage、上限 50、删会话随带清理）；未发送草稿（文字 + 附件）随会话切换暂存/载入（`use-conversation-drafts.ts`，内存态）；"正在执行"面板按「距上次可见流式增量（`lastStreamAt`）的空闲时长」判定，覆盖工具参数流式/工具执行/换轮等静默窗口。
+- Workflow 请求由 `workflowService` 管理运行状态与取消控制，调用 `workflows/` runner；工作流节点通过 `agentService.runOneShot` 执行，并沿 `workflow` 元数据转发流式事件。
+- Code 模式是独立的工具边界：由 `code-projects-service.ts` 管理导入工程（索引存 `~/.desktop-agent/code-projects/`），请求走 `agentService` 的内置 Code 提示词；工具集只含只读 `code_*` 工具与启用的 Skill，写入工具仅在工程显式可写时注册，不混入通用系统工具与 MCP。
+- 模型访问统一经过 `deepseek-client.ts`，使用 OpenAI-compatible Chat Completions 协议；不得在其他服务中直接调用模型 HTTP 接口。
+- 工具统一注册在 `tool-registry.ts`：定义参数 schema、风险等级、超时、来源和执行函数；执行前必须解析 JSON、用 Zod 校验、按需确认、支持 AbortSignal，并记录工具审计日志。
+- Skill 是可加载的用户扩展，MCP 是外部工具服务；二者都通过 tool registry 汇入运行时工具集合，并受 Agent 配置或 Workflow 节点工具策略限制。前端 `/` 指令（`slash-command.ts` + Composer）只负责把 SKILL 正文注入 `promptForModel`，运行时仍以 Skill 工具为准。
+- 主进程向 renderer 的推送通道：`agent:stream`、`workflow:stream`、`conversation:changed`、`tool:confirm`、`ui-window:event`（交互式 HTML 弹出窗口的提交/关闭）；在 index.ts 与 `ui-window-manager` 接线 `webContents.send`，发送前检查窗口存活性。新增推送能力与新增 IPC 一样需要四层同步。
+
+## 交互式会话组件（会话区 UI）
+
+- 模型可产出两类会话区交互组件，用户操作后作为新一轮用户消息回流给模型形成闭环，均受对应 Agent 开关门控、并有 `/` 指令可显式触发：
+  - `ui_form`（受控表单，JSON UI DSL v1）：tool call 产出有界字段（文本/下拉/单选），renderer 渲染成受控表单；`uiDslEnabled` 默认开，`/json-ui` 触发。
+  - `render_ui`（交互式 HTML）：tool call 产出任意 HTML/JS 片段，renderer 用 `sandbox="allow-scripts"` + `data:` URL iframe 承载（独立空策略容器、不继承父窗口 CSP），文档自注入严格 CSP 与桥接脚本（垫片 storage/cookie、错误回传、`window.agentSubmit`）；`uiHtmlEnabled` 默认关，`/html` 触发。可「弹出窗口」到独立 BrowserWindow（`main/ui-window/ui-window-manager.ts`，复用主窗口同款硬化 webPreferences），弹出期间内联降级为占位、独立窗口为唯一交互实例。
+- 承载与回流：这两类组件与 `preview_*` 文件预览都走**瞬时通道**——经 `agent:stream` 的 `uiWidget`/`filePreview` 字段推送、按 `turnUserId` 归位到产生它的那一轮、**不进消息历史也不落盘**；渲染态存 session-store 桶的 `uiWidgets`（含 submitted/poppedOut 态）。提交经宿主校验（nonce + widgetId + `event.source`）后走与普通发送同一条 `runAgent` 链路（override 的 prompt/promptForModel）。
+- 这两个工具刻意不进 `registeredTools`（工作流/工具目录自动排除），由 `getRuntimeTools` 按 Agent 开关条件追加；低风险 `presentational` 系统工具跳过确认弹窗。
+
+## 内部扩展能力（Capability Module）
+
+- 可选的第一方功能域（首个为邮件）以「内部扩展能力」形态插进 core，而非硬编码：core 不认识具体功能域，由能力模块自注册。**这是编译期注册契约、不是运行时动态加载**——模块仍随 esbuild 打进产物；边界只到主进程 + 工具层，preload/contracts 的 IPC 面保持静态声明，不做动态化（守住 preload 最小化安全边界）。
+- 契约在 `main/capabilities/types.ts`：`CapabilityModule { id; isEnabled(config); initialize?; getTools? }`。注册表 `capability-registry.ts` 持有模块清单，导出 `initializeCapabilities`（启动时逐个 `initialize`，失败只隔离该模块）、`getEnabledCapabilityTools(config)`（启用模块的工具，门控进模型工具集）、`getAllCapabilityTools()`（全集，供工具目录/基础工具名补齐）；纯组合逻辑拆到零依赖的 `capability-select.ts` 以便单测。
+- `index.ts` 启动统一调 `initializeCapabilities()`，不再直接 import 具体能力模块；`tool-registry.getRuntimeTools` 并入 `getEnabledCapabilityTools`，`getBaseToolNames`/`getSystemToolCatalog` 用 `getAllCapabilityTools` 补齐（关闭能力也要让 workflow 白名单/工具目录覆盖其工具名）。
+- 启用状态存 `config.enabledExtensions: string[]`（默认空）；扩展 id 单一事实源在 `shared/extensions.ts`（`EXTENSION_IDS`），main 能力模块与 renderer 目录两端共用，避免字符串漂移。能力 `isEnabled` 读该列表（如邮件 `enabledExtensions.includes('mail')`）。
+- 能力的 `initialize`（注册 IPC + 加载账户等）不随启用开关门控、始终执行；只有 `getTools()` 受 `isEnabled` 门控。即「能力关、配置留」：用户移除扩展仅从 `enabledExtensions` 删除，已保存的账户等配置保留。
+- 设置界面：左侧「扩展能力」为可展开分组（排在「关于」之前），子项=已添加扩展（带移除入口）+「添加」入口；renderer 扩展目录在 `renderer/features/settings/extensions/extension-catalog.ts`（id/label/图标/Panel），`SettingsDialogTab` 用 `extension:<id>` 复合值路由到对应 Panel。新增一个扩展：`EXTENSION_IDS` 登记 id → main 注册 `CapabilityModule` → renderer 补目录项。
+
+## 持久化与数据边界
+
+- 应用数据根目录由 `app-paths.ts` 统一提供，位于用户目录下的 `.desktop-agent`；不要在业务代码中散落硬编码数据路径。日志目录例外，位于 Electron `userData/log`，由 `audit-log.ts` 统一管理并按体积轮转、截断明细。
+- Agent 配置使用每个 agent 目录下的 `agent.json` + `AGENT.md`；Workflow 定义使用目录下的 `workflow.json`；会话使用 `meta.json` 与 `segments/*.json` 分段存储；Code 工程索引存 `code-projects/projects.json`，写文件前的备份存 `code-edits/{conversationId}/`。
+- 持久化服务启动时扫描并加载文件到内存 Map；创建、更新、删除、重载必须通过对应 service 完成，并保持内存状态与磁盘状态一致。
+- 会话归组复用 `conversation.agentId` 字段存放 scope 字符串（如 Code 模式的 `code:{projectId}`）；新模式应沿用 scope 前缀约定，不要新增独立字段。
+- 重启后由 `use-chat-session.restoreLastActiveSession` 恢复上次激活的 scope + 会话（记录存于 `renderer/lib/utils/last-active-session`）；记录失效（scope/会话已删）时回退默认智能体的最近会话。
+- 对话发送给模型前可附加附件提取文本或图片内容；持久化消息应过滤工具中间消息，摘要应在接近上下文窗口限制时由 `conversationService` 统一处理。
+- 瞬时 UI（交互组件、文件预览）不落盘、仅存活于渲染周期；会话「输入记录」持久化在 renderer 的 localStorage（按 conversationId，删会话时清），未发送草稿仅内存态。
+
+## 安全与质量约束
+
+- 所有 IPC 输入、工具参数、文件路径、外部 URL 和 MCP 配置都必须在主进程校验；外链只允许 `http/https`，高风险命令工具必须保留确认与超时机制。
+- 文件访问沙箱分两套：通用工具受全局 allowedPaths 约束；`code_*` 工具只允许 `ToolContext.codeProjectRoot` 内的相对路径，防路径逃逸、排除敏感目录并有遍历/行数/体积上限。
+- 写文件类工具必须走固定链路：读过才可写（mtime/size 新鲜度校验）→ 预检并生成 unified diff → `buildConfirmation` 弹窗确认 → 备份到 `code-edits/` → 临时文件 + rename 原子写；新增写入工具不得绕过该链路。
+- 导入 Code 工程禁止文件系统根、家目录及其祖先、应用数据目录；工程默认只读，写权限需显式开启，应用只保存索引不复制工程本体。
+- 新增能力优先复用现有 service、shared contract、tool registry 和审计机制，不要绕过既有边界直接操作底层资源。
+- 交互式 HTML（render_ui）及其独立窗口的沙箱边界不得削弱：untrusted HTML 只在 `sandbox="allow-scripts"`（绝不加 `allow-same-origin`）+ `data:` URL iframe 内运行，文档自带 `default-src 'none'; connect-src 'none'` 等严格内联 CSP，数据只能经 postMessage 回传并经宿主校验；主窗口打包时注入 CSP meta（dev 豁免以保 HMR），默认会话 `setPermissionRequestHandler` 全拒（CVE-2026-70612 缓解，Electron 已升至 41.2.1），弹出窗口复用同款硬化 webPreferences 与外链/导航拦截。
+- 长任务必须支持取消、超时和失败状态；流式事件需检查窗口是否仍存在，避免向已销毁的 BrowserWindow 发送消息。模型请求超时统一用空闲超时模型（`createIdleDeadline` / `modelIdleTimeoutSeconds`），区分超时与用户取消。
+- 修改 IPC 协议、shared 类型、工具 schema、持久化格式或工作流状态时，同时更新相关测试，并至少运行 `npm run typecheck` 与 `npm test`。
+
+## 测试与验证约束
+
+- `npm test` 用 esbuild 显式枚举每个 `.test.ts` 打包后以纯 Node `node --test` 运行——**测试环境没有 Electron**。模块顶层调用 `app.getPath`（如 config-service、audit-log）或有重副作用的模块（如 agent-service 的单例注入）不可被测试直接导入；需要单测的纯逻辑应拆到零依赖模块（先例：`agent/title-text-utils.ts`）。
+- 新增测试文件必须同时登记进 package.json `test` 脚本的两处列表（esbuild 打包列表与 `node --test` 运行列表），漏一处测试不会执行。

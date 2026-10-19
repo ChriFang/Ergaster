@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs -0 ls -lt)",
+      "Bash(python3 -)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(if [ -f /Users/fangruibin/Downloads/2026-政府工作报告.pdf ]; then stat -f '%N | size=%z' /Users/fangruibin/Downloads/2026-政府工作报告.pdf; else echo MISSING; fi)",
+      "Read(//Users/fangruibin/Downloads/**)",
+      "Bash(mdls -raw -name kMDItemTextContent /Users/fangruibin/Downloads/2026-政府工作报告.pdf)",
+      "Bash(npm install *)",
+      "Bash(node -)",
+      "Bash(node --input-type=module -)",
+      "Bash(npm ls *)",
+      "Bash(xargs -0 du -ch)",
+      "Bash(ditto -c -k --sequesterRsrc --keepParent \"release/Desktop Agent-darwin-arm64/Desktop Agent.app\" /tmp/DesktopAgent-arm64-test.zip)",
+      "Read(//tmp/**)",
+      "Bash(rm -f /tmp/DesktopAgent-arm64-test.zip)",
+      "Bash(xargs -0 du -h)",
+      "Bash(npm view *)",
+      "Bash(xargs -0 du -sk)",
+      "Bash(awk 'BEGIN{sum=0} {sum+=$1; printf \"%7.1f MB  %s\\\\n\", $1/1024, $2} END{printf \"TOTAL %.1f MB\\\\n\", sum/1024}')",
+      "Bash(npx esbuild *)",
+      "Bash(find /tmp/desktop-agent-minpack-release -maxdepth 3 -print 2>/dev/null | sed -n '1,40p'; printf '\\\\nlog:\\\\n'; sed -n '1,80p' /tmp/desktop-agent-minpack.log 2>/dev/null)"
+    ]
+  }
+}

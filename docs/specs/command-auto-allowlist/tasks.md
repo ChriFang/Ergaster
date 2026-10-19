@@ -1,0 +1,36 @@
+# 命令自动执行白名单 - 任务计划
+
+- [x] Task 1: 扩展全局配置类型（src/shared/config.ts）
+    - 1.1: ToolSettings 新增 commandAllowlist / commandDenylist 可选字段（含中文注释说明前缀匹配语义）
+    - 1.2: sanitizeToolSettings 对两个清单复用 sanitizeStringArray 并额外做小写化、去重
+- [x] Task 2: 新建命令白名单纯函数模块（src/main/tools/command-allowlist.ts，零依赖）
+    - 2.1: 定义内置只读清单常量（PowerShell cmdlet + 别名，统一小写；含脚本块类 cmdlet 子集标记）
+    - 2.2: 实现引号感知 lexer：按顶层 `;`、换行、`&&`、`||` 拆分语句段，跳过单/双引号内分隔符
+    - 2.3: 实现危险模式检测：管道/重定向/子表达式 `$(`、反引号/脚本块/高危 cmdlet 与别名/`.NET` 类型字面量/`--%`/路径开头
+    - 2.4: 实现 evaluateCommandAutoRun(command, toolSettings)：黑名单 → 危险模式 → 内置清单 → 用户白名单判定链，返回 { decision: 'auto'|'confirm', reason }
+    - 2.5: 实现 extractCommandPrefix(command)：为确认卡「总是允许此命令」提取建议前缀（未命中黑名单/危险模式时返回，否则返回空）
+- [x] Task 3: 编写 command-allowlist 单测并登记
+    - 3.1: 新建 src/main/tools/command-allowlist.test.ts：覆盖判定链各分支与绕过样例（`$(...)`、反引号、管道、重定向、多语句、引号内管道、黑名单优先于白名单、大小写、空清单回退内置清单）
+    - 3.2: package.json test 脚本两处列表（esbuild 打包列表 + node --test 列表）登记该测试文件
+- [x] Task 4: 主进程接入白名单判定（tool-registry / confirmation-service / config-service）
+    - 4.1: tool-registry executeToolCall 为 run_command 增加旁路：非 unattended 且无 workflowMeta 时调用 evaluateCommandAutoRun，'auto' 并入 autoApproved 并在审计日志记录命中原因
+    - 4.2: run_command 注册项增加 buildConfirmation：summary 为命令摘要、detail 含 shell 与判定原因（黑名单/危险模式/未匹配清单）
+    - 4.3: config-service 新增 appendCommandAllowlist(prefix)：并入去重后持久化（走 saveConfig sanitize 链路）
+    - 4.4: confirmation-service：请求 payload 携带 commandAutoAllow；tool:confirm-response 处理 autoAllowCommand 标记，确认时调用 appendCommandAllowlist
+- [x] Task 5: 确认协议四层同步与确认卡 UI
+    - 5.1: shared/contracts.ts：ToolConfirmationRequest 增 commandAutoAllow?: string，确认应答类型增 autoAllowCommand?: boolean
+    - 5.2: preload/index.ts：respondToolConfirmation 透传新参数
+    - 5.3: renderer use-chat-session.ts：handleToolConfirmation 透传 autoAllowCommand
+    - 5.4: ConfirmationPanel.tsx：commandAutoAllow 非空时显示「总是允许此命令」复选框及说明文案（显示将加入的前缀）
+- [x] Task 6: 设置界面新增「工具设置」tab
+    - 6.1: app-shell.ts Tab 联合类型增加 'tools'
+    - 6.2: 新建 ToolsSettingsPanel.tsx：命令白名单/黑名单多行编辑器 + 内置只读清单折叠展示 + 生效合并视图提示
+    - 6.3: SettingsPanel.tsx 迁出 allowedPaths / searchRoots / draftDirectory 区块至新 tab
+    - 6.4: App.tsx renderContent 增加 tools → ToolsSettingsPanel 分支与 tab 标签接线
+    - 6.5: config-form.ts（initialConfigForm）、settings-model.ts（normalizeConfigForm）、use-settings-state.ts（saveConfigWithValues payload）同步新字段
+- [x] Task 7: run_powershell_template 风险降级
+    - 7.1: tool-registry 中 run_powershell_template risk 由 'high' 改为 'medium'，同步更新描述文案
+- [x] Task 8: 全量验证与冒烟
+    - 8.1: npm run typecheck 通过
+    - 8.2: npm test 通过（400/400）
+    - 8.3: 手动冒烟项留给用户在应用内验证（只读命令免确认 / rm 仍弹窗 / 勾选后设置 tab 可见新条目 / 黑名单弹窗无勾选）

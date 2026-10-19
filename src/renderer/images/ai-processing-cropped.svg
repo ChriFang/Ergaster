@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="50 50 220 220" width="220" height="220">
+<style>
+.glow{animation:glow 3s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+@keyframes glow{from{opacity:.6;transform:scale(.95)}to{opacity:1;transform:scale(1.05)}}
+.core-bg{fill:url(#coreGrad);filter:url(#coreShadow);animation:breathe 3s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+@keyframes breathe{from{transform:scale(.92);opacity:.85}to{transform:scale(1.08);opacity:1}}
+.dot-grid circle{fill:#a5b4fc;animation:dblink 1.4s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+.dot-grid circle:nth-child(1){animation-delay:0s}.dot-grid circle:nth-child(2){animation-delay:.2s}.dot-grid circle:nth-child(3){animation-delay:.4s}
+.dot-grid circle:nth-child(4){animation-delay:.1s}.dot-grid circle:nth-child(5){animation-delay:.3s}.dot-grid circle:nth-child(6){animation-delay:.5s}
+.dot-grid circle:nth-child(7){animation-delay:.2s}.dot-grid circle:nth-child(8){animation-delay:.4s}.dot-grid circle:nth-child(9){animation-delay:.6s}
+@keyframes dblink{from{opacity:.3;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+.scan-group{transform-origin:160px 160px;animation:spin 4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scan-arc{fill:none;stroke:url(#scanGrad);stroke-width:2.5;stroke-linecap:round}
+.particle-1{fill:#818cf8;filter:url(#p1s)}
+.particle-2{fill:#c084fc;filter:url(#p2s)}
+.particle-3{fill:#22d3ee;filter:url(#p3s)}
+.ray{stroke:rgba(129,140,248,.22);stroke-width:1;stroke-dasharray:3 5;animation:rflow 2s linear infinite}
+.ray:nth-child(2){animation-delay:-.5s}.ray:nth-child(3){animation-delay:-1s}.ray:nth-child(4){animation-delay:-1.5s}
+@keyframes rflow{from{stroke-dashoffset:0}to{stroke-dashoffset:-32}}
+</style>
+<defs>
+  <radialGradient id="coreGrad" cx="50%" cy="40%" r="55%">
+    <stop offset="0%" stop-color="#6366f1" stop-opacity=".35"/>
+    <stop offset="100%" stop-color="#4f46e5" stop-opacity=".05"/>
+  </radialGradient>
+  <linearGradient id="scanGrad" gradientUnits="userSpaceOnUse" x1="160" y1="80" x2="240" y2="160">
+    <stop offset="0%" stop-color="#818cf8" stop-opacity="0"/>
+    <stop offset="100%" stop-color="#c084fc" stop-opacity=".9"/>
+  </linearGradient>
+  <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#6366f1" stop-opacity=".18"/>
+    <stop offset="40%" stop-color="#8b5cf6" stop-opacity=".08"/>
+    <stop offset="70%" stop-color="#8b5cf6" stop-opacity="0"/>
+  </radialGradient>
+  <filter id="p1s" x="-100%" y="-100%" width="300%" height="300%">
+    <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#818cf8"/>
+  </filter>
+  <filter id="p2s" x="-100%" y="-100%" width="300%" height="300%">
+    <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#c084fc"/>
+  </filter>
+  <filter id="p3s" x="-100%" y="-100%" width="300%" height="300%">
+    <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#22d3ee"/>
+  </filter>
+  <filter id="coreShadow" x="-80%" y="-80%" width="260%" height="260%">
+    <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#6366f1" flood-opacity=".7"/>
+  </filter>
+  <path id="op1" d="M248,160 A88,30 0 1 1 72,160 A88,30 0 1 1 248,160 Z"/>
+  <path id="op2" d="M248,160 A88,28 0 1 1 72,160 A88,28 0 1 1 248,160 Z" transform="rotate(55,160,160)"/>
+  <path id="op3" d="M248,160 A88,28 0 1 1 72,160 A88,28 0 1 1 248,160 Z" transform="rotate(-55,160,160)"/>
+</defs>
+
+<ellipse class="glow" cx="160" cy="160" rx="200" ry="200" fill="url(#bgGlow)"/>
+
+<line class="ray" x1="160" y1="160" x2="160" y2="62"/>
+<line class="ray" x1="160" y1="160" x2="242" y2="210"/>
+<line class="ray" x1="160" y1="160" x2="78"  y2="210"/>
+<line class="ray" x1="160" y1="160" x2="242" y2="110"/>
+<line class="ray" x1="160" y1="160" x2="78"  y2="110"/>
+<line class="ray" x1="160" y1="160" x2="160" y2="258"/>
+
+<g class="scan-group">
+  <path class="scan-arc" d="M160,160 m0,-75 a75,75 0 0 1 50,55"/>
+  <circle cx="160" cy="85" r="3.5" fill="#c084fc" opacity=".9">
+    <animate attributeName="opacity" values=".4;1;.4" dur="2s" repeatCount="indefinite"/>
+  </circle>
+</g>
+
+<circle class="core-bg" cx="160" cy="160" r="52"/>
+
+<g class="dot-grid">
+  <circle cx="151" cy="151" r="2.5"/><circle cx="160" cy="151" r="2.5"/><circle cx="169" cy="151" r="2.5"/>
+  <circle cx="151" cy="160" r="2.5"/><circle cx="160" cy="160" r="3.5"/><circle cx="169" cy="160" r="2.5"/>
+  <circle cx="151" cy="169" r="2.5"/><circle cx="160" cy="169" r="2.5"/><circle cx="169" cy="169" r="2.5"/>
+</g>
+
+<circle class="particle-1" r="5.5">
+  <animateMotion dur="3.5s" repeatCount="indefinite"><mpath href="#op1"/></animateMotion>
+</circle>
+<circle class="particle-2" r="4.5">
+  <animateMotion dur="4.8s" repeatCount="indefinite"><mpath href="#op2"/></animateMotion>
+</circle>
+<circle class="particle-3" r="4">
+  <animateMotion dur="2.9s" repeatCount="indefinite"><mpath href="#op3"/></animateMotion>
+</circle>
+</svg>

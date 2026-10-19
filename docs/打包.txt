@@ -1,0 +1,10 @@
+## windows
+npm run dist
+rcedit-x64.exe release/DesktopTools-win32-x64/DesktopTools.exe --set-icon assets/icon.ico
+
+## 清除windows管理器缓存
+ie4uinit.exe -show
+Stop-Process -Name explorer -Force
+Remove-Item "$env:LOCALAPPDATA\IconCache.db" -ErrorAction SilentlyContinue
+Remove-Item "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\iconcache*" -ErrorAction SilentlyContinue
+Start-Process explorer

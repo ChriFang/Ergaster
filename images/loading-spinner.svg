@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 50 50">
+  <style>
+    .spinner-ring {
+      transform-origin: 25px 25px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
+  <!-- 底圈：浅色轨道 -->
+  <circle cx="25" cy="25" r="20" fill="none"
+          stroke="#e6e6e6" stroke-width="5"/>
+
+  <!-- 旋转弧：主色，用 stroke-dasharray 控制弧长 -->
+  <circle class="spinner-ring" cx="25" cy="25" r="20" fill="none"
+          stroke="#3b82f6" stroke-width="5" stroke-linecap="round"
+          stroke-dasharray="90 150"/>
+</svg>
