@@ -91,12 +91,12 @@ npm run dist:win64     # 打包 Windows x64，产物在 release/
 
 ## 6. 文档索引
 
-- [项目架构与脉络](doc/项目架构与脉络.md)：分层、启动链路、Agent 主链路、持久化分布、局限与扩展点
-- [Skills 使用说明](doc/skills/skills-examples/README.md)
-- [附件输入与持久化设计](doc/附件输入与持久化设计.md)
-- [会话消息分段存储与懒加载分页设计](doc/会话消息分段存储与懒加载分页设计.md)
-- [工作流设计](doc/workflow-design/custom-workflow-editor-design.md)
-- [MCP 需求](doc/MCP.md)
+- [项目架构与脉络](docs/项目架构与脉络.md)：分层、启动链路、Agent 主链路、持久化分布、局限与扩展点
+- [Skills 使用说明](docs/skills/skills-examples/README.md)
+- [附件输入与持久化设计](docs/附件输入与持久化设计.md)
+- [会话消息分段存储与懒加载分页设计](docs/会话消息分段存储与懒加载分页设计.md)
+- [工作流设计](docs/workflow-design/custom-workflow-editor-design.md)
+- [MCP 需求](docs/MCP.md)
 
 ## 7. 安全边界（设计取舍）
 
